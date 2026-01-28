@@ -37,16 +37,26 @@ phoenix-rag/
 
 ## Installation
 
+### Quick Install (PyPI)
+
+```bash
+pip install phoenix-rag
+```
+
+With Groq support (recommended for cloud):
+```bash
+pip install phoenix-rag[groq]
+```
+
 ### Prerequisites
 
 - Python 3.10+
-- Conda (recommended) or pip
 
-### Local Setup
+### Development Setup
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/phoenix-rag.git
+git clone https://github.com/kkipngenokoech/phoenix-rag.git
 cd phoenix-rag
 ```
 
