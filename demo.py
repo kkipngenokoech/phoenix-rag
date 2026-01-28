@@ -40,6 +40,7 @@ def print_subsection(title: str):
 
 
 def run_demo():
+    
     """Run the full Phoenix RAG demonstration."""
     from phoenix_rag.agent import PhoenixAgent
     from phoenix_rag.retrieval import RetrievalModule

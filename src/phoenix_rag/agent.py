@@ -15,7 +15,6 @@ from dataclasses import dataclass, field
 from typing import Optional
 from enum import Enum
 
-from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 
 from phoenix_rag.config import PhoenixConfig, config as default_config
@@ -26,12 +25,78 @@ from phoenix_rag.verification import VerificationModule
 logger = logging.getLogger(__name__)
 
 
+def is_ollama_available(base_url: str = "http://localhost:11434") -> bool:
+    """Check if Ollama is running locally."""
+    import httpx
+    try:
+        response = httpx.get(f"{base_url}/api/tags", timeout=2.0)
+        return response.status_code == 200
+    except Exception:
+        return False
+
+
+def create_llm(config: PhoenixConfig):
+    """Create LLM instance based on provider configuration.
+
+    If provider is 'auto', tries Ollama first, falls back to Groq.
+    """
+    provider = config.llm.provider
+
+    # Auto-detect: try Ollama first, fall back to Groq
+    if provider == "auto":
+        if is_ollama_available(config.llm.base_url):
+            logger.info("Ollama detected locally, using Ollama")
+            provider = "ollama"
+        elif config.llm.groq_api_key:
+            logger.info("Ollama not available, falling back to Groq")
+            provider = "groq"
+        else:
+            raise ValueError("No LLM available: Ollama not running and no GROQ_API_KEY set")
+
+    if provider == "ollama":
+        from langchain_ollama import ChatOllama
+        return ChatOllama(
+            model=config.llm.model,
+            base_url=config.llm.base_url,
+            temperature=config.llm.temperature,
+        )
+    elif provider == "groq":
+        from langchain_groq import ChatGroq
+        # Use a good default model for Groq if using llama3.2 (Ollama model name)
+        model = config.llm.model
+        if model in ["llama3.2", "llama3.1"]:
+            model = "llama-3.3-70b-versatile"
+        return ChatGroq(
+            model=model,
+            api_key=config.llm.groq_api_key,
+            temperature=config.llm.temperature,
+            max_tokens=config.llm.max_tokens,
+        )
+    elif provider == "anthropic":
+        from langchain_anthropic import ChatAnthropic
+        return ChatAnthropic(
+            model=config.llm.model,
+            api_key=config.llm.api_key,
+            temperature=config.llm.temperature,
+            max_tokens=config.llm.max_tokens,
+        )
+    elif provider == "openai":
+        from langchain_openai import ChatOpenAI
+        return ChatOpenAI(
+            model=config.llm.model,
+            temperature=config.llm.temperature,
+            max_tokens=config.llm.max_tokens,
+        )
+    else:
+        raise ValueError(f"Unknown LLM provider: {provider}")
+
+
 class AgentAction(Enum):
     """Actions the agent can take."""
-    RETRIEVE = "retrieve"      # Search knowledge base
-    ANALYZE = "analyze"        # Analyze code
-    RESPOND = "respond"        # Generate final response
-    CLARIFY = "clarify"        # Ask for clarification
+    RETRIEVE = "RETRIEVE"      # Search knowledge base
+    ANALYZE = "ANALYZE"        # Analyze code
+    RESPOND = "RESPOND"        # Generate final response
+    CLARIFY = "CLARIFY"        # Ask for clarification
 
 
 @dataclass
@@ -157,12 +222,7 @@ Respond in this exact JSON format:
         self.config.ensure_directories()
 
         # Initialize LLM
-        self.llm = ChatAnthropic(
-            model=self.config.llm.model,
-            api_key=self.config.llm.api_key,
-            temperature=self.config.llm.temperature,
-            max_tokens=self.config.llm.max_tokens,
-        )
+        self.llm = create_llm(self.config)
 
         # Initialize modules
         self.retrieval = retrieval_module or RetrievalModule(self.config)

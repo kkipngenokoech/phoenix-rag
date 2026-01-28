@@ -10,13 +10,34 @@ import logging
 from dataclasses import dataclass
 from typing import Optional
 
-from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from phoenix_rag.config import PhoenixConfig, config as default_config
 from phoenix_rag.verification.groundedness import GroundednessEvaluator, GroundednessResult
 
 logger = logging.getLogger(__name__)
+
+
+def _create_llm(config: PhoenixConfig):
+    """Create LLM instance based on provider configuration."""
+    if config.llm.provider == "ollama":
+        from langchain_ollama import ChatOllama
+        return ChatOllama(
+            model=config.llm.model,
+            base_url=config.llm.base_url,
+            temperature=0.0,
+        )
+    elif config.llm.provider == "anthropic":
+        from langchain_anthropic import ChatAnthropic
+        return ChatAnthropic(
+            model=config.llm.model,
+            api_key=config.llm.api_key,
+            temperature=0.0,
+            max_tokens=2048,
+        )
+    else:
+        from langchain_ollama import ChatOllama
+        return ChatOllama(model="llama3.2", temperature=0.0)
 
 
 @dataclass
@@ -96,12 +117,7 @@ Format: Either "NO CLARIFICATION NEEDED" or "CLARIFICATION: [your question]"
         # Initialize components
         self.groundedness_evaluator = GroundednessEvaluator(self.config)
 
-        self.llm = ChatAnthropic(
-            model=self.config.llm.model,
-            api_key=self.config.llm.api_key,
-            temperature=0.0,
-            max_tokens=2048,
-        )
+        self.llm = _create_llm(self.config)
 
     def evaluate(
         self,

@@ -16,9 +16,11 @@ load_dotenv()
 class LLMConfig(BaseModel):
     """Configuration for the LLM provider."""
 
-    provider: str = "anthropic"
-    model: str = Field(default_factory=lambda: os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-20241022"))
+    provider: str = Field(default_factory=lambda: os.getenv("LLM_PROVIDER", "auto"))
+    model: str = Field(default_factory=lambda: os.getenv("LLM_MODEL", "llama3.2"))
     api_key: Optional[str] = Field(default_factory=lambda: os.getenv("ANTHROPIC_API_KEY"))
+    groq_api_key: Optional[str] = Field(default_factory=lambda: os.getenv("GROQ_API_KEY"))
+    base_url: str = Field(default_factory=lambda: os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"))
     temperature: float = 0.0
     max_tokens: int = 4096
 
