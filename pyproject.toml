@@ -21,10 +21,6 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Topic :: Software Development :: Quality Assurance",
 ]
-
-[project.urls]
-Homepage = "https://github.com/kkipngenokoech/phoenix-rag"
-Repository = "https://github.com/kkipngenokoech/phoenix-rag"
 dependencies = [
     "langchain>=0.1.0",
     "langchain-ollama>=0.1.0",
@@ -40,6 +36,10 @@ dependencies = [
     "radon>=6.0.0",
     "streamlit>=1.30.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/kkipngenokoech/phoenix-rag"
+Repository = "https://github.com/kkipngenokoech/phoenix-rag"
 
 [project.optional-dependencies]
 dev = [
