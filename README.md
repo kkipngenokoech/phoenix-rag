@@ -48,6 +48,10 @@ With Groq support (recommended for cloud):
 pip install phoenix-rag[groq]
 ```
 
+**Note:** After installing, you'll need:
+1. An LLM provider - either Ollama running locally (`ollama serve`) or a `GROQ_API_KEY` environment variable
+2. Knowledge base documents (optional) - the `data/documents/` folder is not included in the pip package. Create your own or clone from the [GitHub repo](https://github.com/kkipngenokoech/phoenix-rag). Code analysis tools work without a knowledge base.
+
 ### Prerequisites
 
 - Python 3.10+
