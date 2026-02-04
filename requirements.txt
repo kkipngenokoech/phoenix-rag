@@ -1,0 +1,16 @@
+# Requirements for Streamlit Cloud deployment
+langchain>=0.1.0
+langchain-groq>=0.1.0
+langchain-community>=0.0.20
+langchain-chroma>=0.1.0
+langchain-text-splitters>=0.0.1
+chromadb>=0.4.22
+sentence-transformers>=2.3.0
+tiktoken>=0.5.0
+pydantic>=2.0.0
+python-dotenv>=1.0.0
+rich>=13.0.0
+gitpython>=3.1.0
+radon>=6.0.0
+streamlit>=1.30.0
+httpx>=0.24.0
