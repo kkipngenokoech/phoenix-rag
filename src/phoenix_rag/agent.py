@@ -176,50 +176,18 @@ When responding to queries:
 Be specific, practical, and cite the patterns/principles you're applying.
 """
 
-    REACT_PROMPT = """Based on the user's query and available information, decide your next action.
+    REACT_PROMPT = """You are Phoenix, a code refactoring assistant.
 
 User Query: {query}
 
-Previous Steps:
 {previous_steps}
 
-Available Actions:
-1. RETRIEVE: Search the knowledge base (only if you need specific refactoring patterns)
-2. ANALYZE: Analyze code (only if code is provided and not yet analyzed)
-3. RESPOND: Generate the final response - USE THIS when you have enough information
-4. CLARIFY: Ask for clarification (only if the query is truly unclear)
+Based on the above, provide a helpful and detailed response. If code analysis results are provided, reference them in your answer. Be specific about:
+- What issues exist in the code (if any)
+- Specific refactoring suggestions
+- Best practices that apply
 
-CRITICAL RULES:
-- If Previous Steps shows you already retrieved or analyzed, choose RESPOND now
-- If no code is provided and it's a general question, choose RESPOND immediately
-- Do NOT keep retrieving or analyzing repeatedly - gather info once, then RESPOND
-- After 1-2 steps of gathering information, you MUST choose RESPOND
-
-Available Tools (only use if needed):
-- knowledge_retrieval: Search for refactoring knowledge
-- code_analyzer: Analyze code structure and detect code smells
-
-If code is in the query, use "use_provided_code": true (don't copy the code into JSON).
-
-Respond in this exact JSON format:
-{{
-    "thought": "Brief reasoning",
-    "action": "RESPOND",
-    "action_input": {{
-        "response": "Your helpful response to the user"
-    }}
-}}
-
-Or if you need to gather info first:
-{{
-    "thought": "Brief reasoning",
-    "action": "RETRIEVE",
-    "action_input": {{
-        "tool": "knowledge_retrieval",
-        "parameters": {{"query": "your search query"}}
-    }}
-}}
-"""
+Respond directly with your analysis and recommendations:"""
 
     def __init__(
         self,
@@ -278,9 +246,30 @@ Or if you need to gather info first:
         self.current_trace = AgentTrace(query=query)
         self.retrieved_sources = []
 
-        # If code is provided, add it to the query context
+        # If code is provided, automatically analyze it first
+        code_analysis = ""
         if code:
-            query = f"{query}\n\nCode to analyze:\n```python\n{code}\n```"
+            logger.info("Code provided - running automatic analysis")
+            analysis_result = self.tools.execute(
+                "code_analyzer",
+                code=code,
+                analysis_type="full",
+            )
+            if analysis_result.success:
+                code_analysis = f"\n\nCode Analysis Results:\n{analysis_result.to_string()}"
+                self.current_trace.tools_used.append("code_analyzer")
+
+                # Add an analysis step to the trace
+                self.current_trace.steps.append(AgentStep(
+                    step_number=0,
+                    thought="Automatically analyzing provided code",
+                    action=AgentAction.ANALYZE,
+                    action_input={"tool": "code_analyzer"},
+                    observation=analysis_result.to_string()[:500],
+                    tool_used="code_analyzer",
+                ))
+
+            query = f"{query}\n\nCode to analyze:\n```python\n{code}\n```{code_analysis}"
 
         logger.info(f"Agent processing query: {query[:100]}...")
 
@@ -398,11 +387,46 @@ Or if you need to gather info first:
         except (json.JSONDecodeError, ValueError):
             pass
 
-        # Fallback: try to parse structured text
-        logger.warning(f"Could not parse JSON from LLM response, using fallback")
+        # Smart fallback: detect intent from natural language
+        content_lower = content.lower()
+
+        # Check if the model wants to analyze code
+        if any(phrase in content_lower for phrase in [
+            "analyze the code", "let me analyze", "i will analyze",
+            "code analysis", "examining the code", "looking at the code"
+        ]):
+            logger.info("Detected ANALYZE intent from natural language")
+            return {
+                "thought": content[:200],
+                "action": "ANALYZE",
+                "action_input": {
+                    "tool": "code_analyzer",
+                    "parameters": {"use_provided_code": True, "analysis_type": "full"}
+                },
+            }
+
+        # Check if the model wants to search knowledge base
+        if any(phrase in content_lower for phrase in [
+            "search the knowledge", "let me search", "i will search",
+            "retrieve", "look up", "find information about"
+        ]):
+            # Try to extract a search query
+            query = "refactoring best practices"
+            logger.info("Detected RETRIEVE intent from natural language")
+            return {
+                "thought": content[:200],
+                "action": "RETRIEVE",
+                "action_input": {
+                    "tool": "knowledge_retrieval",
+                    "parameters": {"query": query}
+                },
+            }
+
+        # Default fallback: treat as response
+        logger.warning("Could not parse JSON from LLM response, using RESPOND fallback")
         return {
-            "thought": content,
-            "action": "respond",
+            "thought": "Generating direct response",
+            "action": "RESPOND",
             "action_input": {"response": content},
         }
 

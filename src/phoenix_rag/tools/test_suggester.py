@@ -111,40 +111,8 @@ class TestSuggesterTool(BaseTool):
 
     def _initialize_llm(self):
         """Initialize LLM based on config settings."""
-        from phoenix_rag.config import LLMProvider
-
-        provider = self.config.llm.provider
-
-        if provider == LLMProvider.OLLAMA:
-            from langchain_ollama import ChatOllama
-            return ChatOllama(
-                model=self.config.llm.model,
-                base_url=self.config.llm.ollama_base_url,
-                temperature=self.config.llm.temperature,
-            )
-        elif provider == LLMProvider.GROQ:
-            from langchain_groq import ChatGroq
-            return ChatGroq(
-                model=self.config.llm.model,
-                api_key=self.config.llm.groq_api_key,
-                temperature=self.config.llm.temperature,
-            )
-        elif provider == LLMProvider.ANTHROPIC:
-            from langchain_anthropic import ChatAnthropic
-            return ChatAnthropic(
-                model=self.config.llm.model,
-                api_key=self.config.llm.anthropic_api_key,
-                temperature=self.config.llm.temperature,
-            )
-        elif provider == LLMProvider.OPENAI:
-            from langchain_openai import ChatOpenAI
-            return ChatOpenAI(
-                model=self.config.llm.model,
-                api_key=self.config.llm.openai_api_key,
-                temperature=self.config.llm.temperature,
-            )
-        else:
-            raise ValueError(f"Unsupported LLM provider: {provider}")
+        from phoenix_rag.agent import create_llm
+        return create_llm(self.config)
 
     def execute(
         self,

@@ -232,27 +232,19 @@ def display_trace(trace):
     with st.expander("View Agent Reasoning Trace", expanded=False):
         if trace.steps:
             for step in trace.steps:
-                action_class = step.action.value.lower() if step.action else "unknown"
-                thought_text = step.thought[:200] if step.thought else "No thought recorded"
-                if step.thought and len(step.thought) > 200:
-                    thought_text += "..."
+                action_value = step.action.value if step.action else "UNKNOWN"
+                tool_info = f" | Tool: {step.tool_used}" if step.tool_used else ""
 
-                st.markdown(f"""
-                <div class="trace-step">
-                    <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem;">
-                        <strong>Step {step.step_number}</strong>
-                        <span class="trace-action {action_class}">{step.action.value if step.action else 'UNKNOWN'}</span>
-                        {f'<span style="color: #6b7280; font-size: 0.875rem;">Tool: {step.tool_used}</span>' if step.tool_used else ''}
-                    </div>
-                    <p style="color: #4b5563; margin: 0; font-style: italic;">
-                        {thought_text}
-                    </p>
-                </div>
-                """, unsafe_allow_html=True)
+                st.markdown(f"**Step {step.step_number}** - `{action_value}`{tool_info}")
+
+                thought_text = step.thought[:300] if step.thought else "No thought recorded"
+                if step.thought and len(step.thought) > 300:
+                    thought_text += "..."
+                st.caption(thought_text)
+                st.divider()
         else:
             st.info("No reasoning steps recorded.")
 
-        st.divider()
         col1, col2 = st.columns(2)
         with col1:
             score = trace.groundedness_score if trace.groundedness_score is not None else 0.0
