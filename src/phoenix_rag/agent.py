@@ -286,6 +286,9 @@ Respond directly with your analysis and recommendations:"""
             if step.action == AgentAction.RESPOND:
                 # Ready to respond - verify and return
                 response = step.action_input.get("response", "")
+                # If response is empty, use the observation (raw LLM output)
+                if not response and step.observation:
+                    response = step.observation
                 verified_response = self._verify_response(response, query)
                 self.current_trace.final_response = verified_response
                 self.current_trace.total_iterations = iteration + 1
@@ -333,18 +336,24 @@ Respond directly with your analysis and recommendations:"""
             HumanMessage(content=prompt_content),
         ]
 
-        response = self.llm.invoke(messages)
-        decision = self._parse_decision(response.content)
+        llm_response = self.llm.invoke(messages)
+        raw_content = llm_response.content
+        decision = self._parse_decision(raw_content)
 
         # Execute the action
         observation = self._execute_action(decision)
 
+        # For RESPOND action, ensure we have the response content
+        if decision.get("action", "").upper() == "RESPOND":
+            if not decision.get("action_input", {}).get("response"):
+                decision["action_input"] = {"response": raw_content}
+
         return AgentStep(
             step_number=step_number,
-            thought=decision.get("thought", ""),
+            thought=decision.get("thought", "") or raw_content[:200],
             action=AgentAction(decision.get("action", "respond").upper()),
             action_input=decision.get("action_input", {}),
-            observation=observation,
+            observation=observation or raw_content,
             tool_used=decision.get("action_input", {}).get("tool"),
         )
 
