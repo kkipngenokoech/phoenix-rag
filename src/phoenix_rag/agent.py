@@ -184,27 +184,39 @@ Previous Steps:
 {previous_steps}
 
 Available Actions:
-1. RETRIEVE: Search the knowledge base for refactoring patterns, best practices, or code smell remediation
-2. ANALYZE: Analyze the provided code for structure, complexity, and code smells
-3. RESPOND: Generate the final response based on gathered information
-4. CLARIFY: Ask the user for clarification if the query is unclear
+1. RETRIEVE: Search the knowledge base (only if you need specific refactoring patterns)
+2. ANALYZE: Analyze code (only if code is provided and not yet analyzed)
+3. RESPOND: Generate the final response - USE THIS when you have enough information
+4. CLARIFY: Ask for clarification (only if the query is truly unclear)
 
-Available Tools:
-- knowledge_retrieval: Search for refactoring knowledge (use with RETRIEVE action)
-- code_analyzer: Analyze code structure and detect code smells (use with ANALYZE action)
-- complexity_calculator: Calculate detailed code metrics (use with ANALYZE action)
+CRITICAL RULES:
+- If Previous Steps shows you already retrieved or analyzed, choose RESPOND now
+- If no code is provided and it's a general question, choose RESPOND immediately
+- Do NOT keep retrieving or analyzing repeatedly - gather info once, then RESPOND
+- After 1-2 steps of gathering information, you MUST choose RESPOND
 
-IMPORTANT: If code is already provided in the user query above, do NOT include the code in your JSON response.
-Instead, set "use_provided_code": true in the parameters.
+Available Tools (only use if needed):
+- knowledge_retrieval: Search for refactoring knowledge
+- code_analyzer: Analyze code structure and detect code smells
+
+If code is in the query, use "use_provided_code": true (don't copy the code into JSON).
 
 Respond in this exact JSON format:
 {{
-    "thought": "Your reasoning about what to do next",
-    "action": "RETRIEVE" | "ANALYZE" | "RESPOND" | "CLARIFY",
+    "thought": "Brief reasoning",
+    "action": "RESPOND",
     "action_input": {{
-        "tool": "tool_name" (if using a tool),
-        "parameters": {{"query": "search query"}} (for RETRIEVE) or {{"use_provided_code": true, "analysis_type": "full"}} (for ANALYZE),
-        "response": "your response" (if action is RESPOND or CLARIFY)
+        "response": "Your helpful response to the user"
+    }}
+}}
+
+Or if you need to gather info first:
+{{
+    "thought": "Brief reasoning",
+    "action": "RETRIEVE",
+    "action_input": {{
+        "tool": "knowledge_retrieval",
+        "parameters": {{"query": "your search query"}}
     }}
 }}
 """
@@ -275,7 +287,10 @@ Respond in this exact JSON format:
         # ReAct loop
         previous_steps = []
         for iteration in range(max_iterations):
-            step = self._react_step(query, previous_steps, iteration + 1)
+            # Force respond after 3 iterations to prevent infinite loops
+            force_respond = iteration >= 3
+
+            step = self._react_step(query, previous_steps, iteration + 1, force_respond=force_respond)
             self.current_trace.steps.append(step)
             previous_steps.append(step)
 
@@ -307,18 +322,26 @@ Respond in this exact JSON format:
         query: str,
         previous_steps: list[AgentStep],
         step_number: int,
+        force_respond: bool = False,
     ) -> AgentStep:
         """Execute a single ReAct step."""
         # Format previous steps for context
         steps_text = self._format_previous_steps(previous_steps)
 
+        # Build the prompt
+        prompt_content = self.REACT_PROMPT.format(
+            query=query,
+            previous_steps=steps_text or "None yet",
+        )
+
+        # Force respond after too many iterations
+        if force_respond:
+            prompt_content += "\n\nIMPORTANT: You have gathered enough information. You MUST choose action: RESPOND now and provide your final answer."
+
         # Get agent's decision
         messages = [
             SystemMessage(content=self.SYSTEM_PROMPT),
-            HumanMessage(content=self.REACT_PROMPT.format(
-                query=query,
-                previous_steps=steps_text or "None yet",
-            )),
+            HumanMessage(content=prompt_content),
         ]
 
         response = self.llm.invoke(messages)
