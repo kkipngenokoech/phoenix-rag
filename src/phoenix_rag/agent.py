@@ -194,13 +194,16 @@ Available Tools:
 - code_analyzer: Analyze code structure and detect code smells (use with ANALYZE action)
 - complexity_calculator: Calculate detailed code metrics (use with ANALYZE action)
 
+IMPORTANT: If code is already provided in the user query above, do NOT include the code in your JSON response.
+Instead, set "use_provided_code": true in the parameters.
+
 Respond in this exact JSON format:
 {{
     "thought": "Your reasoning about what to do next",
     "action": "RETRIEVE" | "ANALYZE" | "RESPOND" | "CLARIFY",
     "action_input": {{
         "tool": "tool_name" (if using a tool),
-        "parameters": {{ tool parameters }},
+        "parameters": {{"query": "search query"}} (for RETRIEVE) or {{"use_provided_code": true, "analysis_type": "full"}} (for ANALYZE),
         "response": "your response" (if action is RESPOND or CLARIFY)
     }}
 }}
@@ -335,16 +338,45 @@ Respond in this exact JSON format:
 
     def _parse_decision(self, content: str) -> dict:
         """Parse the agent's decision from LLM output."""
+        import re
+
+        # Strip markdown code fences if present
+        cleaned = content.strip()
+        if cleaned.startswith("```"):
+            # Remove opening fence (```json or ```)
+            cleaned = re.sub(r'^```\w*\n?', '', cleaned)
+            # Remove closing fence
+            cleaned = re.sub(r'\n?```$', '', cleaned)
+            cleaned = cleaned.strip()
+
         try:
-            # Try to extract JSON from the response
-            import re
-            json_match = re.search(r'\{[\s\S]*\}', content)
-            if json_match:
-                return json.loads(json_match.group())
+            # Try to parse the cleaned content directly as JSON
+            return json.loads(cleaned)
         except json.JSONDecodeError:
             pass
 
+        try:
+            # Try to extract JSON object from the content
+            # Use a more careful approach - find balanced braces
+            start = cleaned.find('{')
+            if start != -1:
+                depth = 0
+                end = start
+                for i, char in enumerate(cleaned[start:], start):
+                    if char == '{':
+                        depth += 1
+                    elif char == '}':
+                        depth -= 1
+                        if depth == 0:
+                            end = i + 1
+                            break
+                json_str = cleaned[start:end]
+                return json.loads(json_str)
+        except (json.JSONDecodeError, ValueError):
+            pass
+
         # Fallback: try to parse structured text
+        logger.warning(f"Could not parse JSON from LLM response, using fallback")
         return {
             "thought": content,
             "action": "respond",
@@ -399,6 +431,21 @@ Respond in this exact JSON format:
         params = action_input.get("parameters", {})
 
         code = params.get("code", "")
+
+        # Handle use_provided_code flag - extract code from the query
+        if params.get("use_provided_code") and not code:
+            # Extract code from the query stored in trace
+            import re
+            query = self.current_trace.query
+            code_match = re.search(r'```python\n(.*?)\n```', query, re.DOTALL)
+            if code_match:
+                code = code_match.group(1)
+            else:
+                # Try without language specifier
+                code_match = re.search(r'```\n(.*?)\n```', query, re.DOTALL)
+                if code_match:
+                    code = code_match.group(1)
+
         if not code:
             return "No code provided for analysis"
 

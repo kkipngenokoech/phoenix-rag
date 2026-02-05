@@ -226,28 +226,39 @@ def load_knowledge_base(_agent):
 
 def display_trace(trace):
     """Display agent execution trace."""
+    if not trace:
+        return
+
     with st.expander("View Agent Reasoning Trace", expanded=False):
-        for step in trace.steps:
-            action_class = step.action.value.lower()
-            st.markdown(f"""
-            <div class="trace-step">
-                <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem;">
-                    <strong>Step {step.step_number}</strong>
-                    <span class="trace-action {action_class}">{step.action.value}</span>
-                    {f'<span style="color: #6b7280; font-size: 0.875rem;">Tool: {step.tool_used}</span>' if step.tool_used else ''}
+        if trace.steps:
+            for step in trace.steps:
+                action_class = step.action.value.lower() if step.action else "unknown"
+                thought_text = step.thought[:200] if step.thought else "No thought recorded"
+                if step.thought and len(step.thought) > 200:
+                    thought_text += "..."
+
+                st.markdown(f"""
+                <div class="trace-step">
+                    <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem;">
+                        <strong>Step {step.step_number}</strong>
+                        <span class="trace-action {action_class}">{step.action.value if step.action else 'UNKNOWN'}</span>
+                        {f'<span style="color: #6b7280; font-size: 0.875rem;">Tool: {step.tool_used}</span>' if step.tool_used else ''}
+                    </div>
+                    <p style="color: #4b5563; margin: 0; font-style: italic;">
+                        {thought_text}
+                    </p>
                 </div>
-                <p style="color: #4b5563; margin: 0; font-style: italic;">
-                    {step.thought[:200]}{'...' if len(step.thought) > 200 else ''}
-                </p>
-            </div>
-            """, unsafe_allow_html=True)
+                """, unsafe_allow_html=True)
+        else:
+            st.info("No reasoning steps recorded.")
 
         st.divider()
         col1, col2 = st.columns(2)
         with col1:
-            st.metric("Groundedness Score", f"{trace.groundedness_score:.0%}")
+            score = trace.groundedness_score if trace.groundedness_score is not None else 0.0
+            st.metric("Groundedness Score", f"{score:.0%}")
         with col2:
-            st.metric("Iterations", trace.total_iterations)
+            st.metric("Iterations", trace.total_iterations or 0)
 
 
 def display_code_smells(smells):
@@ -387,13 +398,23 @@ def main():
                 with st.spinner("Thinking..."):
                     try:
                         response, trace = agent.run(prompt)
-                        st.markdown(response)
-                        display_trace(trace)
 
-                        st.session_state.messages.append({"role": "assistant", "content": response})
+                        # Ensure response is displayed
+                        if response and isinstance(response, str):
+                            st.markdown(response)
+                        else:
+                            st.warning("No response generated. Check the trace below for details.")
+
+                        # Display trace if available
+                        if trace and trace.steps:
+                            display_trace(trace)
+
+                        st.session_state.messages.append({"role": "assistant", "content": response or "No response"})
                         st.session_state.traces.append(trace)
                     except Exception as e:
                         st.error(f"Error: {e}")
+                        import traceback
+                        st.code(traceback.format_exc())
 
         # Clear chat button
         if st.button("Clear Chat"):
