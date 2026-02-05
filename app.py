@@ -276,40 +276,54 @@ def display_code_smells(smells):
 
 
 def display_metrics(metrics):
-    """Display complexity metrics in cards."""
+    """Display complexity metrics in a clean format."""
+    # Extract values from nested structure
+    cc_data = metrics.get('cyclomatic_complexity', {})
+    mi_data = metrics.get('maintainability_index', {})
+    raw_data = metrics.get('raw_metrics', {})
+
+    # Summary
+    if metrics.get('summary'):
+        st.info(metrics['summary'])
+
+    # Main metrics in columns
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        st.markdown(f"""
-        <div class="metric-card">
-            <h3>Cyclomatic Complexity</h3>
-            <div class="value">{metrics.get('cyclomatic_complexity', 'N/A')}</div>
-        </div>
-        """, unsafe_allow_html=True)
+        cc_value = cc_data.get('average_complexity', 'N/A') if isinstance(cc_data, dict) else 'N/A'
+        cc_rank = cc_data.get('overall_rank', '') if isinstance(cc_data, dict) else ''
+        st.metric("Cyclomatic Complexity", f"{cc_value}", help=cc_rank)
 
     with col2:
-        st.markdown(f"""
-        <div class="metric-card">
-            <h3>Maintainability Index</h3>
-            <div class="value">{metrics.get('maintainability_index', 'N/A')}</div>
-        </div>
-        """, unsafe_allow_html=True)
+        mi_value = mi_data.get('score', 'N/A') if isinstance(mi_data, dict) else 'N/A'
+        mi_rating = mi_data.get('rating', '') if isinstance(mi_data, dict) else ''
+        st.metric("Maintainability Index", f"{mi_value}", help=mi_rating)
 
     with col3:
-        st.markdown(f"""
-        <div class="metric-card">
-            <h3>Lines of Code</h3>
-            <div class="value">{metrics.get('loc', 'N/A')}</div>
-        </div>
-        """, unsafe_allow_html=True)
+        loc = raw_data.get('loc', 'N/A') if isinstance(raw_data, dict) else 'N/A'
+        st.metric("Lines of Code", loc)
 
     with col4:
-        st.markdown(f"""
-        <div class="metric-card">
-            <h3>Functions</h3>
-            <div class="value">{metrics.get('function_count', 'N/A')}</div>
-        </div>
-        """, unsafe_allow_html=True)
+        sloc = raw_data.get('sloc', 'N/A') if isinstance(raw_data, dict) else 'N/A'
+        st.metric("Source Lines", sloc)
+
+    # Recommendations
+    if metrics.get('recommendations'):
+        st.subheader("Recommendations")
+        for rec in metrics['recommendations']:
+            st.warning(rec)
+
+    # Function-level complexity breakdown
+    if isinstance(cc_data, dict) and cc_data.get('blocks'):
+        st.subheader("Function Complexity Breakdown")
+        for block in cc_data['blocks']:
+            col1, col2, col3 = st.columns([3, 1, 1])
+            with col1:
+                st.text(f"{block.get('name', 'unknown')}")
+            with col2:
+                st.text(f"CC: {block.get('complexity', '?')}")
+            with col3:
+                st.text(f"Rank: {block.get('rank', '?')}")
 
 
 def main():
