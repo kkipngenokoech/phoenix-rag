@@ -2,6 +2,11 @@
 
 A Retrieval-Augmented Generation (RAG) system for code refactoring assistance. Phoenix helps developers identify code smells, suggests refactoring patterns, and provides best practices grounded in established software engineering principles.
 
+## Quick links:
+1. [documentation](https://kipngenokoech.com/projects/phoenix-rag)
+2. [live demo](https://phoenix-rag.streamlit.app)
+3. [pip version](https://pypi.org/project/phoenix-rag/)
+
 ## Features
 
 - **Knowledge Retrieval**: Search a curated knowledge base of refactoring patterns, code smells, and best practices
